@@ -82,10 +82,6 @@ namespace SharpCifs.Util.Sharpen
                 {
                     StartPoolThread();
                 }
-                else if (_freeThreads > 0)
-                {
-                    _freeThreads--;
-                }
                 else if (_runningThreads < _maxPoolSize)
                 {
                     StartPoolThread();
@@ -103,32 +99,55 @@ namespace SharpCifs.Util.Sharpen
 
         public void RunPoolThread()
         {
-            while (!IsTerminated())
+            try
             {
-                try
+                while (!IsTerminated())
                 {
-                    IRunnable r = null;
-                    lock (_pendingTasks)
+                    try
                     {
-                        _freeThreads++;
-                        while (!IsTerminated() && _pendingTasks.Count == 0)
-                            ST.Monitor.Wait(_pendingTasks);
-                        if (IsTerminated())
-                            break;
-                        r = _pendingTasks.Dequeue();
+                        IRunnable r = null;
+                        lock (_pendingTasks)
+                        {
+                            while (!IsTerminated() && _pendingTasks.Count == 0)
+                            {
+                                _freeThreads++;
+                                try
+                                {
+                                    ST.Monitor.Wait(_pendingTasks);
+                                }
+                                finally
+                                {
+                                    _freeThreads--;
+                                }
+                            }
+
+                            if (IsTerminated())
+                                break;
+
+                            r = _pendingTasks.Dequeue();
+                        }
+
+                        if (r != null)
+                            r.Run();
                     }
-                    if (r != null)
-                        r.Run();
+                    //supress all errors, anyway
+                    //catch (ST.ThreadAbortException) {
+                    //	// Do not catch a thread abort. If we've been aborted just let the thread die.
+                    //	// Currently reseting an abort which was issued because the appdomain is being
+                    //	// torn down results in the process living forever and consuming 100% cpu time.
+                    //	return;
+                    //}
+                    catch
+                    {
+                    }
                 }
-                //supress all errors, anyway
-                //catch (ST.ThreadAbortException) {
-                //	// Do not catch a thread abort. If we've been aborted just let the thread die.
-                //	// Currently reseting an abort which was issued because the appdomain is being
-                //	// torn down results in the process living forever and consuming 100% cpu time.
-                //	return;
-                //}
-                catch
+            }
+            finally
+            {
+                lock (_pendingTasks)
                 {
+                    _runningThreads--;
+                    _pool.RemoveAll(x => x.Equals(Thread.CurrentThread()));
                 }
             }
         }
