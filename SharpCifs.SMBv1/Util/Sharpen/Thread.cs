@@ -2,6 +2,7 @@ using SharpCifs.Util.DbsHelper;
 using System;
 using System.Collections.Generic;
 using System.Threading;
+using System.Threading.Tasks;
 
 namespace SharpCifs.Util.Sharpen
 {
@@ -193,7 +194,7 @@ namespace SharpCifs.Util.Sharpen
             this._canceller = canceller;
             bool hasStarted = false;
 
-            this._task = System.Threading.Tasks.Task.Run(() =>
+            this._task = System.Threading.Tasks.Task.Factory.StartNew(() =>
             {
                 Thread.WrapperThread = this;
                 this._id = System.Environment.CurrentManagedThreadId;
@@ -223,7 +224,7 @@ namespace SharpCifs.Util.Sharpen
 
                     //Log.Out("Thread.Start - Task Close Completed");
                 }
-            }, this._token);
+            }, this._token, TaskCreationOptions.LongRunning, TaskScheduler.Default);
 
             //同期的に実行するとき、動作中フラグONまで待つ。
             if (isSynced)
